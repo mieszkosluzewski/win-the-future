@@ -4,8 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from tests.factories import TaskFactory
-from tests.factories import make_task_payload
+from tests.factories import TaskFactory, make_task_payload
 from win_the_future.models import Day, Task, TaskCategory
 
 
