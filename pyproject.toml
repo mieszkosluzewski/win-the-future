@@ -5,7 +5,11 @@ description = "A minimal productivity app built around five daily tasks and thre
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "alembic>=1.20.0",
     "fastapi>=0.141.1",
+    "psycopg[binary]>=3.3.5",
+    "pydantic-settings>=2.15.0",
+    "sqlalchemy>=2.0.52",
     "uvicorn[standard]>=0.52.4",
 ]
 
@@ -31,7 +35,7 @@ addopts = "-ra"
 
 [tool.ruff]
 target-version = "py313"
-line-length = 88
+line-length = 99
 src = ["src", "tests"]
 
 [tool.ruff.lint]
@@ -51,3 +55,4 @@ indent-style = "space"
 python_version = "3.13"
 strict = true
 mypy_path = "src"
+plugins = ["pydantic.mypy"]
