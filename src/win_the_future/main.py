@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from win_the_future.api.days import router as days_router
 from win_the_future.api.tasks import router as tasks_router
 
 app = FastAPI(
@@ -8,6 +9,7 @@ app = FastAPI(
 )
 
 app.include_router(tasks_router)
+app.include_router(days_router)
 
 
 @app.get("/health")

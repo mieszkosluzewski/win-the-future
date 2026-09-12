@@ -20,3 +20,9 @@ class Day(Base):
     is_won: Mapped[bool] = mapped_column(default=False, server_default=false(), nullable=False)
 
     tasks: Mapped[list["Task"]] = relationship(back_populates="day")
+
+    required_core_tasks: Mapped[int] = mapped_column(
+        default=5,
+        server_default="5",
+        nullable=False,
+    )
