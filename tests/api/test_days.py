@@ -1,7 +1,11 @@
 from datetime import date, timedelta
 
+import pytest
 import time_machine
 from fastapi.testclient import TestClient
+
+from tests.factories import DayFactory, TaskFactory
+from win_the_future.models import TaskCategory
 
 
 @time_machine.travel("2026-09-13")
@@ -113,3 +117,256 @@ def test_today_and_tomorrow_are_different_days(
 
     assert today_response.json()["id"] != tomorrow_response.json()["id"]
     assert today_response.json()["date"] != tomorrow_response.json()["date"]
+
+
+def test_create_task_for_day(
+    client: TestClient,
+    day_factory: DayFactory,
+) -> None:
+    day = day_factory()
+
+    response = client.post(
+        f"/days/{day.id}/tasks",
+        json={
+            "title": "Practice bass",
+            "category": "mind",
+            "estimated_minutes": 30,
+        },
+    )
+
+    assert response.status_code == 201
+
+    data = response.json()
+
+    assert data["title"] == "Practice bass"
+    assert data["category"] == "mind"
+    assert data["estimated_minutes"] == 30
+    assert data["day_id"] == day.id
+    assert data["is_completed"] is False
+    assert data["is_bonus"] is False
+
+
+def test_create_task_for_nonexistent_day_returns_404(
+    client: TestClient,
+) -> None:
+    response = client.post(
+        "/days/999/tasks",
+        json={
+            "title": "Practice bass",
+            "category": "mind",
+            "estimated_minutes": 30,
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Day not found."
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {
+            "title": "",
+            "category": "mind",
+            "estimated_minutes": 30,
+        },
+        {
+            "title": "Practice bass",
+            "category": "invalid",
+            "estimated_minutes": 30,
+        },
+        {
+            "title": "Practice bass",
+            "category": "mind",
+            "estimated_minutes": 0,
+        },
+        {
+            "title": "Practice bass",
+            "category": "mind",
+            "estimated_minutes": 121,
+        },
+    ],
+)
+def test_create_task_for_day_rejects_invalid_task(
+    client: TestClient,
+    day_factory: DayFactory,
+    payload: dict[str, object],
+) -> None:
+    day = day_factory()
+
+    response = client.post(
+        f"/days/{day.id}/tasks",
+        json=payload,
+    )
+
+    assert response.status_code == 422
+
+
+def test_assign_backlog_task_to_day(
+    client: TestClient,
+    day_factory: DayFactory,
+    task_factory: TaskFactory,
+) -> None:
+    day = day_factory()
+
+    task = task_factory(
+        title="Practice bass",
+        category=TaskCategory.MIND,
+        day_id=None,
+    )
+
+    response = client.put(f"/days/{day.id}/tasks/{task.id}")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["id"] == task.id
+    assert data["day_id"] == day.id
+
+
+def test_assign_task_to_nonexistent_day_returns_404(
+    client: TestClient,
+    task_factory: TaskFactory,
+) -> None:
+    task = task_factory()
+
+    response = client.put(f"/days/999/tasks/{task.id}")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Day not found."
+
+
+def test_assign_nonexistent_task_returns_404(
+    client: TestClient,
+    day_factory: DayFactory,
+) -> None:
+    day = day_factory()
+
+    response = client.put(f"/days/{day.id}/tasks/999")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Task not found."
+
+
+def test_assign_task_moves_it_from_another_day(
+    client: TestClient,
+    day_factory: DayFactory,
+    task_factory: TaskFactory,
+) -> None:
+    first_day = day_factory(
+        day_date=date(2026, 9, 13),
+    )
+    second_day = day_factory(
+        day_date=date(2026, 9, 14),
+    )
+
+    task = task_factory(
+        day_id=first_day.id,
+    )
+
+    response = client.put(f"/days/{second_day.id}/tasks/{task.id}")
+
+    assert response.status_code == 200
+    assert response.json()["day_id"] == second_day.id
+
+
+def test_assign_task_to_same_day_is_idempotent(
+    client: TestClient,
+    day_factory: DayFactory,
+    task_factory: TaskFactory,
+) -> None:
+    day = day_factory()
+
+    task = task_factory(
+        day_id=day.id,
+    )
+
+    response = client.put(f"/days/{day.id}/tasks/{task.id}")
+
+    assert response.status_code == 200
+    assert response.json()["day_id"] == day.id
+
+
+def test_unassign_task_from_day(
+    client: TestClient,
+    day_factory: DayFactory,
+    task_factory: TaskFactory,
+) -> None:
+    day = day_factory()
+
+    task = task_factory(
+        day_id=day.id,
+    )
+
+    response = client.delete(f"/days/{day.id}/tasks/{task.id}")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["id"] == task.id
+    assert data["day_id"] is None
+
+
+def test_unassign_task_from_nonexistent_day_returns_404(
+    client: TestClient,
+    task_factory: TaskFactory,
+) -> None:
+    task = task_factory()
+
+    response = client.delete(f"/days/999/tasks/{task.id}")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Day not found."
+
+
+def test_unassign_nonexistent_task_returns_404(
+    client: TestClient,
+    day_factory: DayFactory,
+) -> None:
+    day = day_factory()
+
+    response = client.delete(f"/days/{day.id}/tasks/999")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Task not found."
+
+
+def test_unassign_task_from_wrong_day_returns_409(
+    client: TestClient,
+    day_factory: DayFactory,
+    task_factory: TaskFactory,
+) -> None:
+    first_day = day_factory(
+        day_date=date(2026, 9, 13),
+    )
+    second_day = day_factory(
+        day_date=date(2026, 9, 14),
+    )
+
+    task = task_factory(
+        day_id=first_day.id,
+    )
+
+    response = client.delete(f"/days/{second_day.id}/tasks/{task.id}")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == ("Task is not assigned to this day.")
+
+
+def test_unassign_backlog_task_returns_409(
+    client: TestClient,
+    day_factory: DayFactory,
+    task_factory: TaskFactory,
+) -> None:
+    day = day_factory()
+
+    task = task_factory(
+        day_id=None,
+    )
+
+    response = client.delete(f"/days/{day.id}/tasks/{task.id}")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == ("Task is not assigned to this day.")

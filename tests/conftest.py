@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
@@ -6,14 +7,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from tests.factories import TaskFactory
+from tests.factories import DayFactory, TaskFactory
 
 # Makes sure all models are registered in Base.metadata.
 from win_the_future import models  # noqa: F401
 from win_the_future.db.base import Base
 from win_the_future.db.dependencies import get_db
 from win_the_future.main import app
-from win_the_future.models import Task, TaskCategory
+from win_the_future.models import Day, Task, TaskCategory
 
 
 @pytest.fixture
@@ -78,5 +79,28 @@ def task_factory(
         db_session.refresh(task)
 
         return task
+
+    return _make
+
+
+@pytest.fixture
+def day_factory(db_session: Session) -> DayFactory:
+    def _make(
+        *,
+        day_date: date = date(2026, 9, 13),
+        required_core_tasks: int = 5,
+        is_won: bool = False,
+    ) -> Day:
+        day = Day(
+            date=day_date,
+            required_core_tasks=required_core_tasks,
+            is_won=is_won,
+        )
+
+        db_session.add(day)
+        db_session.commit()
+        db_session.refresh(day)
+
+        return day
 
     return _make

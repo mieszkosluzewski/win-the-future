@@ -28,7 +28,7 @@ class Task(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    day_id: Mapped[int] = mapped_column(
+    day_id: Mapped[int | None] = mapped_column(
         ForeignKey("days.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
