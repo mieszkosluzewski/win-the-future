@@ -1,8 +1,9 @@
 from collections.abc import Callable
 
-from win_the_future.models import Task
+from win_the_future.models import Day, Task
 
 TaskFactory = Callable[..., Task]
+DayFactory = Callable[..., Day]
 
 
 def make_task_payload(**overrides: object) -> dict[str, object]:

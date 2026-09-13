@@ -3,9 +3,16 @@ from datetime import date
 from fastapi import APIRouter, HTTPException, Response, status
 
 from win_the_future.db.dependencies import DbSession
+from win_the_future.models import Task
 from win_the_future.models.day import Day
 from win_the_future.schemas.day import DayRead
+from win_the_future.schemas.task import TaskCreate, TaskRead
 from win_the_future.services import day_service
+from win_the_future.services.exceptions import (
+    DayNotFoundError,
+    TaskNotAssignedToDayError,
+    TaskNotFoundError,
+)
 
 router = APIRouter(
     prefix="/days",
@@ -70,6 +77,88 @@ def get_day(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Day not found.",
-        )
+        ) from None
 
     return day
+
+
+@router.post(
+    "/{day_id}/tasks",
+    response_model=TaskRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_task_for_day(
+    day_id: int,
+    task_data: TaskCreate,
+    db: DbSession,
+) -> Task:
+    try:
+        return day_service.create_task_for_day(
+            db,
+            day_id=day_id,
+            task_data=task_data,
+        )
+    except DayNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Day not found.",
+        ) from None
+
+
+@router.put(
+    "/{day_id}/tasks/{task_id}",
+    response_model=TaskRead,
+)
+def assign_task_to_day(
+    day_id: int,
+    task_id: int,
+    db: DbSession,
+) -> Task:
+    try:
+        return day_service.assign_task_to_day(
+            db,
+            day_id=day_id,
+            task_id=task_id,
+        )
+    except DayNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Day not found.",
+        ) from None
+    except TaskNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Task not found.",
+        ) from None
+
+
+@router.delete(
+    "/{day_id}/tasks/{task_id}",
+    response_model=TaskRead,
+)
+def unassign_task_from_day(
+    day_id: int,
+    task_id: int,
+    db: DbSession,
+) -> Task:
+    try:
+        return day_service.unassign_task_from_day(
+            db,
+            day_id=day_id,
+            task_id=task_id,
+        )
+    except DayNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Day not found.",
+        ) from None
+    except TaskNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Task not found.",
+        ) from None
+    except TaskNotAssignedToDayError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Task is not assigned to this day.",
+        ) from None
