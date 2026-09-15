@@ -3,7 +3,7 @@ from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, Engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -18,7 +18,7 @@ from win_the_future.models import Day, Task, TaskCategory
 
 
 @pytest.fixture
-def db_session() -> Generator[Session]:
+def test_engine() -> Generator[Engine, None, None]:
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -27,16 +27,23 @@ def db_session() -> Generator[Session]:
 
     Base.metadata.create_all(engine)
 
+    yield engine
+
+    Base.metadata.drop_all(engine)
+    engine.dispose()
+
+
+
+@pytest.fixture
+def db_session(test_engine: Engine) -> Generator[Session]:
     session_factory = sessionmaker(
-        bind=engine,
+        bind=test_engine,
         autoflush=False,
         expire_on_commit=False,
     )
 
     with session_factory() as session:
         yield session
-
-    Base.metadata.drop_all(engine)
 
 
 @pytest.fixture
