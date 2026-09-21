@@ -37,10 +37,10 @@ class TaskRead(BaseModel):
 
 
 class TaskUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     title: TaskTitle | None = Field(default=None, min_length=1, max_length=255)
     category: TaskCategory | None = None
     estimated_minutes: int | None = Field(default=None, ge=1, le=120)
-    is_completed: bool | None = None
 
     # noinspection PyNestedDecorators
     @field_validator("title", mode="before")
