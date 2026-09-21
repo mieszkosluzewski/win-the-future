@@ -7,18 +7,18 @@ from win_the_future.models import Task, TaskCategory
 from win_the_future.models.day import Day
 from win_the_future.schemas.task import TaskCreate
 from win_the_future.services.exceptions import (
+    CoreTaskLimitReachedError,
+    DayAlreadyWonError,
     DayNotFoundError,
+    DayNotReadyError,
+    InvalidBonusTaskError,
     TaskNotAssignedToDayError,
-    TaskNotFoundError, DayNotReadyError, DayAlreadyWonError, InvalidBonusTaskError, CoreTaskLimitReachedError,
+    TaskNotFoundError,
 )
 
 
 def _get_core_tasks(day: Day) -> list[Task]:
-    return [
-        task
-        for task in day.tasks
-        if not task.is_bonus
-    ]
+    return [task for task in day.tasks if not task.is_bonus]
 
 
 def get_or_create_day(
@@ -177,14 +177,9 @@ def is_day_ready(
 ) -> bool:
     core_tasks = _get_core_tasks(day)
 
-    has_required_task_count = (
-        len(core_tasks) == day.required_core_tasks
-    )
+    has_required_task_count = len(core_tasks) == day.required_core_tasks
 
-    categories = {
-        task.category
-        for task in core_tasks
-    }
+    categories = {task.category for task in core_tasks}
 
     has_all_categories = set(TaskCategory) <= categories
 
@@ -214,10 +209,11 @@ def _validate_task_modification(
     day: Day,
 ) -> None:
     if task.is_bonus and not day.is_won:
-            raise InvalidBonusTaskError
+        raise InvalidBonusTaskError
 
     elif day.is_won and not task.is_bonus:
         raise DayAlreadyWonError
+
 
 def _validate_core_task_completion(
     day: Day,
@@ -246,9 +242,7 @@ def complete_task(
     task.is_completed = True
 
     if not task.is_bonus and all(
-        day_task.is_completed
-        for day_task in day.tasks
-        if not day_task.is_bonus
+        day_task.is_completed for day_task in day.tasks if not day_task.is_bonus
     ):
         day.is_won = True
 

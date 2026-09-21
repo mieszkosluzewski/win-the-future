@@ -7,8 +7,13 @@ from tests.factories import DayFactory, TaskFactory
 from win_the_future.models import TaskCategory
 from win_the_future.schemas.task import TaskCreate
 from win_the_future.services import day_service
-from win_the_future.services.exceptions import DayNotReadyError, DayAlreadyWonError, TaskNotAssignedToDayError, \
-    TaskNotFoundError, CoreTaskLimitReachedError
+from win_the_future.services.exceptions import (
+    CoreTaskLimitReachedError,
+    DayAlreadyWonError,
+    DayNotReadyError,
+    TaskNotAssignedToDayError,
+    TaskNotFoundError,
+)
 
 
 def test_day_is_not_ready_with_no_tasks(
