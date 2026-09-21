@@ -9,11 +9,12 @@ from win_the_future.schemas.task import TaskCreate
 from win_the_future.services.exceptions import (
     CoreTaskLimitReachedError,
     DayAlreadyWonError,
+    DayNotCurrentError,
     DayNotFoundError,
     DayNotReadyError,
     InvalidBonusTaskError,
     TaskNotAssignedToDayError,
-    TaskNotFoundError, DayNotCurrentError,
+    TaskNotFoundError,
 )
 
 

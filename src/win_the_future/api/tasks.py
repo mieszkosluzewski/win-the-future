@@ -1,13 +1,18 @@
-from fastapi import APIRouter, HTTPException, Response, status, Depends
+from fastapi import APIRouter, HTTPException, Response, status
 from sqlalchemy import select
-from sqlalchemy.orm import Session
 
-from win_the_future.db.dependencies import DbSession, get_db
+from win_the_future.db.dependencies import DbSession
 from win_the_future.models import Task
 from win_the_future.schemas.task import TaskCreate, TaskRead, TaskUpdate
 from win_the_future.services import day_service
-from win_the_future.services.exceptions import TaskNotFoundError, TaskNotAssignedToDayError, DayNotCurrentError, \
-    DayNotReadyError, DayAlreadyWonError, InvalidBonusTaskError
+from win_the_future.services.exceptions import (
+    DayAlreadyWonError,
+    DayNotCurrentError,
+    DayNotReadyError,
+    InvalidBonusTaskError,
+    TaskNotAssignedToDayError,
+    TaskNotFoundError,
+)
 
 router = APIRouter(
     prefix="/tasks",
@@ -89,7 +94,7 @@ def delete_task(
 @router.put("/{task_id}/complete", response_model=TaskRead)
 def complete_task(
     task_id: int,
-    db: Session = Depends(get_db),
+    db: DbSession,
 ) -> Task:
     try:
         return day_service.complete_task(
@@ -131,7 +136,7 @@ def complete_task(
 @router.put("/{task_id}/uncomplete", response_model=TaskRead)
 def uncomplete_task(
     task_id: int,
-    db: Session = Depends(get_db),
+    db: DbSession,
 ) -> Task:
     try:
         return day_service.uncomplete_task(
