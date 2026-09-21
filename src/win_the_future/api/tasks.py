@@ -1,9 +1,13 @@
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, HTTPException, Response, status, Depends
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
-from win_the_future.db.dependencies import DbSession
+from win_the_future.db.dependencies import DbSession, get_db
 from win_the_future.models import Task
 from win_the_future.schemas.task import TaskCreate, TaskRead, TaskUpdate
+from win_the_future.services import day_service
+from win_the_future.services.exceptions import TaskNotFoundError, TaskNotAssignedToDayError, DayNotCurrentError, \
+    DayNotReadyError, DayAlreadyWonError, InvalidBonusTaskError
 
 router = APIRouter(
     prefix="/tasks",
@@ -80,3 +84,82 @@ def delete_task(
     db.commit()
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put("/{task_id}/complete", response_model=TaskRead)
+def complete_task(
+    task_id: int,
+    db: Session = Depends(get_db),
+) -> Task:
+    try:
+        return day_service.complete_task(
+            db,
+            task_id=task_id,
+        )
+    except TaskNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Task not found.",
+        ) from None
+    except TaskNotAssignedToDayError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Task is not assigned to a day.",
+        ) from None
+    except DayNotCurrentError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only tasks for the current day can be completed.",
+        ) from None
+    except DayNotReadyError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Day is not ready.",
+        ) from None
+    except DayAlreadyWonError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Core tasks cannot be modified after the day is won.",
+        ) from None
+    except InvalidBonusTaskError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Bonus task is not valid for this day.",
+        ) from None
+
+
+@router.put("/{task_id}/uncomplete", response_model=TaskRead)
+def uncomplete_task(
+    task_id: int,
+    db: Session = Depends(get_db),
+) -> Task:
+    try:
+        return day_service.uncomplete_task(
+            db,
+            task_id=task_id,
+        )
+    except TaskNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Task not found.",
+        ) from None
+    except TaskNotAssignedToDayError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Task is not assigned to a day.",
+        ) from None
+    except DayNotCurrentError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only tasks for the current day can be modified.",
+        ) from None
+    except DayAlreadyWonError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Core tasks cannot be modified after the day is won.",
+        ) from None
+    except InvalidBonusTaskError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Bonus task is not valid for this day.",
+        ) from None

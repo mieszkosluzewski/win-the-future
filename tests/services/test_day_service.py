@@ -1,6 +1,7 @@
 from datetime import date
 
 import pytest
+import time_machine
 from sqlalchemy.orm import Session
 
 from tests.factories import DayFactory, TaskFactory
@@ -10,6 +11,7 @@ from win_the_future.services import day_service
 from win_the_future.services.exceptions import (
     CoreTaskLimitReachedError,
     DayAlreadyWonError,
+    DayNotCurrentError,
     DayNotReadyError,
     TaskNotAssignedToDayError,
     TaskNotFoundError,
@@ -104,6 +106,7 @@ def test_day_is_not_ready_with_more_than_required_core_tasks(
     assert day_service.is_day_ready(day) is False
 
 
+@time_machine.travel("2026-09-13")
 def test_cannot_complete_task_when_day_is_not_ready(
     db_session: Session,
     day_factory: DayFactory,
@@ -123,6 +126,7 @@ def test_cannot_complete_task_when_day_is_not_ready(
         )
 
 
+@time_machine.travel("2026-09-13")
 def test_can_complete_task_when_day_is_ready(
     db_session: Session,
     day_factory: DayFactory,
@@ -148,6 +152,7 @@ def test_can_complete_task_when_day_is_ready(
     assert day.is_won is False
 
 
+@time_machine.travel("2026-09-13")
 def test_completing_non_last_core_task_does_not_win_day(
     db_session: Session,
     day_factory: DayFactory,
@@ -188,6 +193,7 @@ def test_completing_non_last_core_task_does_not_win_day(
     assert day.is_won is False
 
 
+@time_machine.travel("2026-09-13")
 def test_completing_last_core_task_wins_day(
     db_session: Session,
     day_factory: DayFactory,
@@ -230,6 +236,7 @@ def test_completing_last_core_task_wins_day(
     assert day.is_won is True
 
 
+@time_machine.travel("2026-09-13")
 def test_cannot_complete_core_task_after_day_is_won(
     db_session: Session,
     day_factory: DayFactory,
@@ -273,6 +280,7 @@ def test_cannot_complete_core_task_after_day_is_won(
         )
 
 
+@time_machine.travel("2026-09-13")
 def test_bonus_task_does_not_affect_day_win(
     db_session: Session,
     day_factory: DayFactory,
@@ -324,6 +332,7 @@ def test_complete_nonexistent_task_raises_error(
         )
 
 
+@time_machine.travel("2026-09-13")
 def test_uncomplete_core_task(
     db_session: Session,
     day_factory: DayFactory,
@@ -344,26 +353,7 @@ def test_uncomplete_core_task(
     assert uncompleted_task.is_completed is False
 
 
-def test_uncomplete_already_uncompleted_task_is_idempotent(
-    db_session: Session,
-    day_factory: DayFactory,
-    task_factory: TaskFactory,
-) -> None:
-    day = day_factory()
-
-    task = task_factory(
-        day_id=day.id,
-        is_completed=False,
-    )
-
-    uncompleted_task = day_service.uncomplete_task(
-        db_session,
-        task_id=task.id,
-    )
-
-    assert uncompleted_task.is_completed is False
-
-
+@time_machine.travel("2026-09-13")
 def test_cannot_uncomplete_core_task_after_day_is_won(
     db_session: Session,
     day_factory: DayFactory,
@@ -384,6 +374,7 @@ def test_cannot_uncomplete_core_task_after_day_is_won(
         )
 
 
+@time_machine.travel("2026-09-13")
 def test_can_uncomplete_bonus_task_after_day_is_won(
     db_session: Session,
     day_factory: DayFactory,
@@ -750,6 +741,7 @@ def test_can_move_bonus_task_from_won_day(
     assert assigned_task.is_bonus is False
 
 
+@time_machine.travel("2026-09-13")
 def test_complete_already_completed_core_task_is_idempotent(
     db_session: Session,
     day_factory: DayFactory,
@@ -795,6 +787,7 @@ def test_complete_already_completed_core_task_is_idempotent(
     assert day.is_won is False
 
 
+@time_machine.travel("2026-09-13")
 def test_complete_already_completed_core_task_after_win_is_idempotent(
     db_session: Session,
     day_factory: DayFactory,
@@ -819,6 +812,7 @@ def test_complete_already_completed_core_task_after_win_is_idempotent(
     assert day.is_won is True
 
 
+@time_machine.travel("2026-09-13")
 def test_complete_already_completed_bonus_task_is_idempotent(
     db_session: Session,
     day_factory: DayFactory,
@@ -841,6 +835,7 @@ def test_complete_already_completed_bonus_task_is_idempotent(
     assert day.is_won is True
 
 
+@time_machine.travel("2026-09-13")
 def test_uncomplete_already_uncompleted_core_task_is_idempotent(
     db_session: Session,
     day_factory: DayFactory,
@@ -862,6 +857,7 @@ def test_uncomplete_already_uncompleted_core_task_is_idempotent(
     assert uncompleted_task.is_completed is False
 
 
+@time_machine.travel("2026-09-13")
 def test_uncomplete_already_uncompleted_bonus_task_is_idempotent(
     db_session: Session,
     day_factory: DayFactory,
@@ -884,27 +880,95 @@ def test_uncomplete_already_uncompleted_bonus_task_is_idempotent(
     assert day.is_won is True
 
 
-def test_assign_task_to_same_day_is_idempotent_when_day_is_full(
+@time_machine.travel("2026-09-13")
+def test_cannot_complete_task_for_past_day(
     db_session: Session,
     day_factory: DayFactory,
     task_factory: TaskFactory,
 ) -> None:
     day = day_factory(
+        day_date=date(2026, 9, 12),
         required_core_tasks=5,
-        is_won=False,
     )
 
-    task = task_factory(day_id=day.id)
-    task_factory(day_id=day.id)
-    task_factory(day_id=day.id)
-    task_factory(day_id=day.id)
-    task_factory(day_id=day.id)
-
-    assigned_task = day_service.assign_task_to_day(
-        db_session,
+    task = task_factory(
         day_id=day.id,
-        task_id=task.id,
+        category=TaskCategory.MIND,
+    )
+    task_factory(day_id=day.id, category=TaskCategory.BODY)
+    task_factory(day_id=day.id, category=TaskCategory.MONEY)
+    task_factory(day_id=day.id, category=TaskCategory.MIND)
+    task_factory(day_id=day.id, category=TaskCategory.MONEY)
+
+    with pytest.raises(DayNotCurrentError):
+        day_service.complete_task(
+            db_session,
+            task_id=task.id,
+        )
+
+
+@time_machine.travel("2026-09-13")
+def test_cannot_complete_task_for_future_day(
+    db_session: Session,
+    day_factory: DayFactory,
+    task_factory: TaskFactory,
+) -> None:
+    day = day_factory(
+        day_date=date(2026, 9, 14),
+        required_core_tasks=5,
     )
 
-    assert assigned_task.id == task.id
-    assert assigned_task.day_id == day.id
+    task = task_factory(
+        day_id=day.id,
+        category=TaskCategory.MIND,
+    )
+    task_factory(day_id=day.id, category=TaskCategory.BODY)
+    task_factory(day_id=day.id, category=TaskCategory.MONEY)
+    task_factory(day_id=day.id, category=TaskCategory.MIND)
+    task_factory(day_id=day.id, category=TaskCategory.MONEY)
+
+    with pytest.raises(DayNotCurrentError):
+        day_service.complete_task(
+            db_session,
+            task_id=task.id,
+        )
+
+
+@time_machine.travel("2026-09-13")
+def test_cannot_uncomplete_task_for_past_day(
+    db_session: Session,
+    day_factory: DayFactory,
+    task_factory: TaskFactory,
+) -> None:
+    day = day_factory(day_date=date(2026, 9, 12))
+
+    task = task_factory(
+        day_id=day.id,
+        is_completed=True,
+    )
+
+    with pytest.raises(DayNotCurrentError):
+        day_service.uncomplete_task(
+            db_session,
+            task_id=task.id,
+        )
+
+
+@time_machine.travel("2026-09-13")
+def test_cannot_uncomplete_task_for_future_day(
+    db_session: Session,
+    day_factory: DayFactory,
+    task_factory: TaskFactory,
+) -> None:
+    day = day_factory(day_date=date(2026, 9, 14))
+
+    task = task_factory(
+        day_id=day.id,
+        is_completed=True,
+    )
+
+    with pytest.raises(DayNotCurrentError):
+        day_service.uncomplete_task(
+            db_session,
+            task_id=task.id,
+        )

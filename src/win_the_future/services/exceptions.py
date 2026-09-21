@@ -28,3 +28,6 @@ class InvalidBonusTaskError(DomainError):
 
 class CoreTaskLimitReachedError(DomainError):
     pass
+
+class DayNotCurrentError(DomainError):
+    pass

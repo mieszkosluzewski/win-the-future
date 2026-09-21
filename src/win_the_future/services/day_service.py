@@ -13,7 +13,7 @@ from win_the_future.services.exceptions import (
     DayNotReadyError,
     InvalidBonusTaskError,
     TaskNotAssignedToDayError,
-    TaskNotFoundError,
+    TaskNotFoundError, DayNotCurrentError,
 )
 
 
@@ -222,6 +222,11 @@ def _validate_core_task_completion(
         raise DayNotReadyError
 
 
+def _validate_day_is_current(day: Day) -> None:
+    if day.date != date.today():
+        raise DayNotCurrentError
+
+
 def complete_task(
     db: Session,
     *,
@@ -234,6 +239,7 @@ def complete_task(
     if task.is_completed:
         return task
 
+    _validate_day_is_current(day)
     _validate_task_modification(task, day)
 
     if not task.is_bonus:
@@ -262,6 +268,7 @@ def uncomplete_task(
         task_id=task_id,
     )
 
+    _validate_day_is_current(day)
     _validate_task_modification(task, day)
 
     task.is_completed = False

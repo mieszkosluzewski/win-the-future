@@ -352,7 +352,7 @@ def test_unassign_task_from_wrong_day_returns_409(
     response = client.delete(f"/days/{second_day.id}/tasks/{task.id}")
 
     assert response.status_code == 409
-    assert response.json()["detail"] == ("Task is not assigned to this day.")
+    assert response.json()["detail"] == "Task is not assigned to this day."
 
 
 def test_unassign_backlog_task_returns_409(
@@ -369,4 +369,4 @@ def test_unassign_backlog_task_returns_409(
     response = client.delete(f"/days/{day.id}/tasks/{task.id}")
 
     assert response.status_code == 409
-    assert response.json()["detail"] == ("Task is not assigned to this day.")
+    assert response.json()["detail"] == "Task is not assigned to this day."
