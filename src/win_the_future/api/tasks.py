@@ -4,6 +4,7 @@ from sqlalchemy import select
 from win_the_future.db.dependencies import DbSession
 from win_the_future.models import Task
 from win_the_future.schemas.task import TaskCreate, TaskRead, TaskUpdate
+from win_the_future.security.dependencies import CurrentUser
 from win_the_future.services import day_service
 from win_the_future.services.exceptions import (
     DayAlreadyWonError,
@@ -24,8 +25,9 @@ router = APIRouter(
 def create_task(
     task_data: TaskCreate,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> Task:
-    task = Task(**task_data.model_dump())
+    task = Task(**task_data.model_dump(), user_id=current_user.id)
     db.add(task)
     db.commit()
     db.refresh(task)

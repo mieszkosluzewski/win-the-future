@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from tests.factories import DayFactory, TaskFactory, make_task_payload
-from win_the_future.models import Day, Task, TaskCategory
+from win_the_future.models import Day, Task, TaskCategory, User
 
 
 def _create_ready_day(
@@ -14,10 +14,12 @@ def _create_ready_day(
     task_factory: TaskFactory,
     *,
     day_date: date = date(2026, 9, 13),
+    user_id: int | None = None,
 ) -> tuple[Day, list[Task]]:
     day = day_factory(
         day_date=day_date,
         required_core_tasks=5,
+        user_id=user_id,
     )
     tasks = [
         task_factory(day_id=day.id, category=TaskCategory.MIND),
@@ -29,11 +31,15 @@ def _create_ready_day(
     return day, tasks
 
 
-def test_create_task(client: TestClient) -> None:
+def test_create_task(
+    client: TestClient,
+    auth_headers: dict[str, str],
+) -> None:
     payload = make_task_payload()
     response = client.post(
         "/tasks",
         json=payload,
+        headers=auth_headers,
     )
 
     assert response.status_code == 201
@@ -53,11 +59,13 @@ def test_create_task(client: TestClient) -> None:
 def test_create_task_invalid_estimated_minutes(
     client: TestClient,
     estimated_minutes: int,
+    auth_headers: dict[str, str],
 ) -> None:
     payload = make_task_payload(estimated_minutes=estimated_minutes)
     response = client.post(
         "/tasks/",
         json=payload,
+        headers=auth_headers,
     )
 
     assert response.status_code == 422
@@ -67,10 +75,12 @@ def test_create_task_invalid_estimated_minutes(
 def test_create_task_empty_title(
     client: TestClient,
     title: str | None,
+    auth_headers: dict[str, str],
 ) -> None:
     response = client.post(
         "/tasks",
         json=make_task_payload(title=title),
+        headers=auth_headers,
     )
 
     assert response.status_code == 422
@@ -80,10 +90,12 @@ def test_create_task_empty_title(
 def test_create_task_valid_estimated_minutes(
     client: TestClient,
     estimated_minutes: int,
+    auth_headers: dict[str, str],
 ) -> None:
     response = client.post(
         "/tasks",
         json=make_task_payload(estimated_minutes=estimated_minutes),
+        headers=auth_headers,
     )
 
     assert response.status_code == 201
@@ -91,10 +103,12 @@ def test_create_task_valid_estimated_minutes(
 
 def test_update_task_rejects_null_title(
     client: TestClient,
+    auth_headers: dict[str, str],
 ) -> None:
     create_response = client.post(
         "/tasks",
         json=make_task_payload(),
+        headers=auth_headers,
     )
     task_id = create_response.json()["id"]
 
@@ -106,14 +120,19 @@ def test_update_task_rejects_null_title(
     assert response.status_code == 422
 
 
-def test_get_backlog(client: TestClient) -> None:
+def test_get_backlog(
+    client: TestClient,
+    auth_headers: dict[str, str],
+) -> None:
     client.post(
         "/tasks",
         json=make_task_payload(title="1"),
+        headers=auth_headers,
     )
     client.post(
         "/tasks",
         json=make_task_payload(title="2"),
+        headers=auth_headers,
     )
 
     response = client.get("/tasks/backlog")
@@ -129,24 +148,35 @@ def test_get_backlog(client: TestClient) -> None:
 def test_get_backlog_returns_only_unassigned_tasks(
     client: TestClient,
     db_session: Session,
+    auth_user: User,
+    auth_headers: dict[str, str],
 ) -> None:
     client.post(
         "/tasks",
         json=make_task_payload(title="Backlog task"),
+        headers=auth_headers,
     )
 
-    day = Day(date=date(2026, 9, 12))
+    day = Day(
+        date=date(2026, 9, 12),
+        user_id=auth_user.id,
+    )
+
     assigned_task = Task(
         title="Assigned task",
         category=TaskCategory.MONEY,
         estimated_minutes=30,
         day=day,
+        user_id=auth_user.id,
     )
 
     db_session.add_all([day, assigned_task])
     db_session.commit()
 
-    response = client.get("/tasks/backlog")
+    response = client.get(
+        "/tasks/backlog",
+        headers=auth_headers,
+    )
 
     assert response.status_code == 200
 
@@ -294,17 +324,29 @@ def test_completing_last_core_task_wins_day(
     client: TestClient,
     day_factory: DayFactory,
     task_factory: TaskFactory,
+    auth_user: User,
+    auth_headers: dict[str, str],
 ) -> None:
-    day, tasks = _create_ready_day(day_factory, task_factory)
+    day, tasks = _create_ready_day(
+        day_factory,
+        task_factory,
+        user_id=auth_user.id,
+    )
 
     for task in tasks[:-1]:
         task.is_completed = True
 
-    response = client.put(f"/tasks/{tasks[-1].id}/complete")
+    response = client.put(
+        f"/tasks/{tasks[-1].id}/complete",
+        headers=auth_headers,
+    )
 
     assert response.status_code == 200
 
-    day_response = client.get(f"/days/{day.date.isoformat()}")
+    day_response = client.get(
+        f"/days/{day.date.isoformat()}",
+        headers=auth_headers,
+    )
 
     assert day_response.status_code == 200
     assert day_response.json()["is_won"] is True
@@ -579,3 +621,35 @@ def test_uncomplete_task_is_idempotent(
     assert first_response.status_code == 200
     assert second_response.status_code == 200
     assert second_response.json()["is_completed"] is False
+
+
+def test_create_task_without_auth_returns_401(
+    client: TestClient,
+) -> None:
+    response = client.post(
+        "/tasks",
+        json=make_task_payload(),
+    )
+
+    assert response.status_code == 401
+
+
+def test_create_task_assigns_current_user(
+    client: TestClient,
+    db_session: Session,
+    auth_user: User,
+    auth_headers: dict[str, str],
+) -> None:
+    response = client.post(
+        "/tasks",
+        json=make_task_payload(),
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 201
+
+    task_id = response.json()["id"]
+    task = db_session.get(Task, task_id)
+
+    assert task is not None
+    assert task.user_id == auth_user.id

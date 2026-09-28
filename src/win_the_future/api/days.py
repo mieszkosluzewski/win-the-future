@@ -7,6 +7,7 @@ from win_the_future.models import Task
 from win_the_future.models.day import Day
 from win_the_future.schemas.day import DayRead
 from win_the_future.schemas.task import TaskCreate, TaskRead
+from win_the_future.security.dependencies import CurrentUser
 from win_the_future.services import day_service
 from win_the_future.services.exceptions import (
     DayNotFoundError,
@@ -27,8 +28,9 @@ router = APIRouter(
 def get_or_create_today(
     response: Response,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> Day:
-    day, created = day_service.get_or_create_today(db)
+    day, created = day_service.get_or_create_today(db, user_id=current_user.id)
 
     response.status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
 
@@ -42,8 +44,9 @@ def get_or_create_today(
 def get_or_create_tomorrow(
     response: Response,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> Day:
-    day, created = day_service.get_or_create_tomorrow(db)
+    day, created = day_service.get_or_create_tomorrow(db, user_id=current_user.id)
 
     response.status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
 
@@ -56,8 +59,9 @@ def get_or_create_tomorrow(
 )
 def get_days(
     db: DbSession,
+    current_user: CurrentUser,
 ) -> list[Day]:
-    return day_service.get_days(db)
+    return day_service.get_days(db, user_id=current_user.id)
 
 
 @router.get(
@@ -67,19 +71,20 @@ def get_days(
 def get_day(
     day_date: date,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> Day:
-    day = day_service.get_day_by_date(
-        db,
-        day_date=day_date,
-    )
-
-    if day is None:
+    try:
+        day = day_service.get_day_by_date(
+            db,
+            day_date=day_date,
+            user_id=current_user.id,
+        )
+        return day
+    except DayNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Day not found.",
         ) from None
-
-    return day
 
 
 @router.post(

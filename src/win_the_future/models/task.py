@@ -8,6 +8,7 @@ from win_the_future.db.base import Base
 
 if TYPE_CHECKING:
     from win_the_future.models.day import Day
+    from win_the_future.models.user import User
 
 
 class TaskCategory(StrEnum):
@@ -56,5 +57,18 @@ class Task(Base):
     estimated_minutes: Mapped[int | None]
 
     day: Mapped["Day"] = relationship(
+        back_populates="tasks",
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "users.id",
+            name="fk_tasks_user_id_users",
+        ),
+        index=True,
+        nullable=False,
+    )
+
+    user: Mapped["User"] = relationship(
         back_populates="tasks",
     )
