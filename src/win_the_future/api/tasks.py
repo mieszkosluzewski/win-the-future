@@ -4,6 +4,7 @@ from sqlalchemy import select
 from win_the_future.db.dependencies import DbSession
 from win_the_future.models import Task
 from win_the_future.schemas.task import TaskCreate, TaskRead, TaskUpdate
+from win_the_future.security.dependencies import CurrentUser
 from win_the_future.services import day_service
 from win_the_future.services.exceptions import (
     DayAlreadyWonError,
@@ -24,8 +25,9 @@ router = APIRouter(
 def create_task(
     task_data: TaskCreate,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> Task:
-    task = Task(**task_data.model_dump())
+    task = Task(**task_data.model_dump(), user_id=current_user.id)
     db.add(task)
     db.commit()
     db.refresh(task)
@@ -35,8 +37,13 @@ def create_task(
 @router.get("/backlog", response_model=list[TaskRead])
 def get_backlog(
     db: DbSession,
+    current_user: CurrentUser,
 ) -> list[Task]:
-    statement = select(Task).where(Task.day_id.is_(None)).order_by(Task.id)
+    statement = (
+        select(Task)
+        .where(Task.day_id.is_(None), Task.user_id == current_user.id)
+        .order_by(Task.id)
+    )
 
     return list(db.scalars(statement).all())
 
@@ -45,8 +52,9 @@ def get_backlog(
 def get_task(
     task_id: int,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> Task:
-    statement = select(Task).where(Task.id == task_id)
+    statement = select(Task).where(Task.id == task_id, Task.user_id == current_user.id)
     task = db.scalar(statement)
     if task is None:
         raise HTTPException(
@@ -62,8 +70,9 @@ def update_task(
     task_id: int,
     task_data: TaskUpdate,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> Task:
-    task = get_task(task_id, db=db)
+    task = get_task(task_id, db=db, current_user=current_user)
     updates = task_data.model_dump(exclude_unset=True)
 
     for field, value in updates.items():
@@ -82,8 +91,9 @@ def update_task(
 def delete_task(
     task_id: int,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> Response:
-    task = get_task(task_id, db=db)
+    task = get_task(task_id, db=db, current_user=current_user)
 
     db.delete(task)
     db.commit()
@@ -95,11 +105,13 @@ def delete_task(
 def complete_task(
     task_id: int,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> Task:
     try:
         return day_service.complete_task(
             db,
             task_id=task_id,
+            user_id=current_user.id,
         )
     except TaskNotFoundError:
         raise HTTPException(
@@ -137,11 +149,13 @@ def complete_task(
 def uncomplete_task(
     task_id: int,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> Task:
     try:
         return day_service.uncomplete_task(
             db,
             task_id=task_id,
+            user_id=current_user.id,
         )
     except TaskNotFoundError:
         raise HTTPException(

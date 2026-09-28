@@ -24,16 +24,22 @@ def _get_core_tasks(day: Day) -> list[Task]:
 
 def get_or_create_day(
     db: Session,
-    *,
     day_date: date,
+    user_id: int,
 ) -> tuple[Day, bool]:
-    day = db.scalar(select(Day).where(Day.date == day_date))
+    day = db.scalar(
+        select(Day).where(
+            Day.date == day_date,
+            Day.user_id == user_id,
+        )
+    )
 
     if day is not None:
         return day, False
 
     day = Day(
         date=day_date,
+        user_id=user_id,
     )
 
     db.add(day)
@@ -45,34 +51,49 @@ def get_or_create_day(
 
 def get_or_create_today(
     db: Session,
+    user_id: int,
 ) -> tuple[Day, bool]:
     return get_or_create_day(
         db,
-        day_date=date.today(),
+        date.today(),
+        user_id,
     )
 
 
 def get_or_create_tomorrow(
     db: Session,
+    user_id: int,
 ) -> tuple[Day, bool]:
     return get_or_create_day(
         db,
-        day_date=date.today() + timedelta(days=1),
+        date.today() + timedelta(days=1),
+        user_id,
     )
 
 
-def get_days(db: Session) -> list[Day]:
-    statement = select(Day).order_by(Day.date.desc())
-    return list(db.scalars(statement).all())
+def get_days(
+    db: Session,
+    user_id: int,
+) -> list[Day]:
+    return list(db.scalars(select(Day).where(Day.user_id == user_id).order_by(Day.date.desc())))
 
 
 def get_day_by_date(
     db: Session,
-    *,
     day_date: date,
-) -> Day | None:
-    statement = select(Day).where(Day.date == day_date)
-    return db.scalar(statement)
+    user_id: int,
+) -> Day:
+    day = db.scalar(
+        select(Day).where(
+            Day.date == day_date,
+            Day.user_id == user_id,
+        )
+    )
+
+    if day is None:
+        raise DayNotFoundError
+
+    return day
 
 
 def create_task_for_day(
@@ -80,8 +101,14 @@ def create_task_for_day(
     *,
     day_id: int,
     task_data: TaskCreate,
+    user_id: int,
 ) -> Task:
-    day = db.get(Day, day_id)
+    day = db.scalar(
+        select(Day).where(
+            Day.id == day_id,
+            Day.user_id == user_id,
+        )
+    )
 
     if day is None:
         raise DayNotFoundError
@@ -92,7 +119,9 @@ def create_task_for_day(
     task = Task(
         **task_data.model_dump(),
         day_id=day.id,
+        user_id=user_id,
     )
+
     if day.is_won:
         task.is_bonus = True
 
@@ -108,13 +137,24 @@ def assign_task_to_day(
     *,
     day_id: int,
     task_id: int,
+    user_id: int,
 ) -> Task:
-    day = db.get(Day, day_id)
+    day = db.scalar(
+        select(Day).where(
+            Day.id == day_id,
+            Day.user_id == user_id,
+        )
+    )
 
     if day is None:
         raise DayNotFoundError
 
-    task = db.get(Task, task_id)
+    task = db.scalar(
+        select(Task).where(
+            Task.id == task_id,
+            Task.user_id == user_id,
+        )
+    )
 
     if task is None:
         raise TaskNotFoundError
@@ -147,13 +187,24 @@ def unassign_task_from_day(
     *,
     day_id: int,
     task_id: int,
+    user_id: int,
 ) -> Task:
-    day = db.get(Day, day_id)
+    day = db.scalar(
+        select(Day).where(
+            Day.id == day_id,
+            Day.user_id == user_id,
+        )
+    )
 
     if day is None:
         raise DayNotFoundError
 
-    task = db.get(Task, task_id)
+    task = db.scalar(
+        select(Task).where(
+            Task.id == task_id,
+            Task.user_id == user_id,
+        )
+    )
 
     if task is None:
         raise TaskNotFoundError
@@ -191,8 +242,14 @@ def _get_task_with_day(
     db: Session,
     *,
     task_id: int,
+    user_id: int,
 ) -> tuple[Task, Day]:
-    task = db.get(Task, task_id)
+    task = db.scalar(
+        select(Task).where(
+            Task.id == task_id,
+            Task.user_id == user_id,
+        )
+    )
 
     if task is None:
         raise TaskNotFoundError
@@ -232,10 +289,12 @@ def complete_task(
     db: Session,
     *,
     task_id: int,
+    user_id: int,
 ) -> Task:
     task, day = _get_task_with_day(
         db,
         task_id=task_id,
+        user_id=user_id,
     )
     if task.is_completed:
         return task
@@ -263,10 +322,12 @@ def uncomplete_task(
     db: Session,
     *,
     task_id: int,
+    user_id: int,
 ) -> Task:
     task, day = _get_task_with_day(
         db,
         task_id=task_id,
+        user_id=user_id,
     )
 
     _validate_day_is_current(day)

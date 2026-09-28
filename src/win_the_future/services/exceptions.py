@@ -32,3 +32,7 @@ class CoreTaskLimitReachedError(DomainError):
 
 class DayNotCurrentError(DomainError):
     pass
+
+
+class UserAlreadyExistsError(DomainError):
+    pass
