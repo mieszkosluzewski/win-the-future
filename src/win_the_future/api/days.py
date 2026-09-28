@@ -96,12 +96,14 @@ def create_task_for_day(
     day_id: int,
     task_data: TaskCreate,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> Task:
     try:
         return day_service.create_task_for_day(
             db,
             day_id=day_id,
             task_data=task_data,
+            user_id=current_user.id,
         )
     except DayNotFoundError:
         raise HTTPException(
@@ -118,12 +120,11 @@ def assign_task_to_day(
     day_id: int,
     task_id: int,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> Task:
     try:
         return day_service.assign_task_to_day(
-            db,
-            day_id=day_id,
-            task_id=task_id,
+            db, day_id=day_id, task_id=task_id, user_id=current_user.id
         )
     except DayNotFoundError:
         raise HTTPException(
@@ -145,12 +146,14 @@ def unassign_task_from_day(
     day_id: int,
     task_id: int,
     db: DbSession,
+    current_user: CurrentUser,
 ) -> Task:
     try:
         return day_service.unassign_task_from_day(
             db,
             day_id=day_id,
             task_id=task_id,
+            user_id=current_user.id,
         )
     except DayNotFoundError:
         raise HTTPException(
